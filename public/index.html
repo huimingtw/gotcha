@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>GOTCHA</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div class="page page-center" id="login-screen">
+  <div class="logo">GOTCHA</div>
+  <div class="subtitle" id="subtitle"></div>
+  <input type="text" id="name-input" placeholder="輸入你的名字" maxlength="20">
+  <button class="btn btn-yellow" onclick="joinGame()">加入遊戲</button>
+</div>
+
+<div id="toast"></div>
+
+<script src="/shared.js"></script>
+<script>
+const SUBTITLES = [
+  '你很可疑喔',
+  '鬼鬼祟祟幹什麼',
+  '笑什麼笑',
+  '裝什麼裝',
+  '你的表情出賣了你',
+  '假裝沒事喔?',
+  '去對牆 1000 個',
+  '不要亂來哦',
+];
+document.getElementById('subtitle').textContent =
+  SUBTITLES[Math.floor(Math.random() * SUBTITLES.length)];
+
+window.onload = async () => {
+  let data;
+  try {
+    const r = await fetch(`${API}/players`);
+    data = await r.json();
+  } catch {
+    // network error, just show login
+    connectSSE(sseHandlers);
+    return;
+  }
+
+  if (data.status === 'closed') {
+    window.location.href = '/closed';
+    return;
+  }
+
+  // Room is open (waiting/playing/ended)
+  const name = getMyName();
+  if (name) {
+    // Try to restore session
+    try {
+      const r2 = await fetch(`${API}/me/${encodeURIComponent(name)}`);
+      const me = await r2.json();
+      if (me.error) {
+        clearMyName();
+        // Stay on login
+      } else if (me.game_status === 'playing') {
+        window.location.href = '/game';
+        return;
+      } else if (me.game_status === 'ended') {
+        window.location.href = '/leaderboard';
+        return;
+      } else {
+        // waiting
+        window.location.href = '/waiting';
+        return;
+      }
+    } catch {
+      // Network error — keep name so they can retry
+    }
+  }
+
+  connectSSE(sseHandlers);
+};
+
+const sseHandlers = {
+  open: (msg) => {
+    // Room just opened, stay on login (already here)
+  },
+  reset: (msg) => {
+    clearMyName();
+    window.location.reload();
+  },
+  state: (msg) => {
+    if (msg.status === 'closed') {
+      window.location.href = '/closed';
+    }
+  },
+};
+
+async function joinGame() {
+  const name = document.getElementById('name-input').value.trim();
+  if (!name) { toast('請輸入名字'); return; }
+
+  try {
+    const r = await fetch(`${API}/join`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name})
+    });
+    const data = await r.json();
+    if (data.error) { toast(data.error); return; }
+    setMyName(name);
+    window.location.href = '/waiting';
+  } catch {
+    toast('連線失敗，請重試');
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>GOTCHA - 排行榜</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+#bg-pattern {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+}
+#bg-inner {
+  position: absolute; top: -100%; left: -100%; width: 300%; height: 300%;
+  display: flex; flex-direction: column; gap: 36px;
+  animation: bg-drift 18s linear infinite;
+}
+.bg-row {
+  white-space: nowrap;
+  font-family: Impact, 'Arial Black', sans-serif;
+  font-size: 56px; font-weight: 900;
+  color: rgba(255, 215, 0, 0.18);
+  letter-spacing: 18px;
+  user-select: none;
+}
+@keyframes bg-drift {
+  from { transform: rotate(-22deg) translateX(0); }
+  to   { transform: rotate(-22deg) translateX(-440px); }
+}
+</style>
+</head>
+<body>
+
+<div id="bg-pattern"><div id="bg-inner"></div></div>
+
+<div class="page" id="lb-page" style="min-height:100dvh; position:relative; z-index:1">
+  <div class="lb-title">🏆 排行榜</div>
+  <div id="lb-list" style="display:flex; flex-direction:column; gap:12px"></div>
+  <div id="game-log-section" style="display:none">
+    <div class="log-title">完整記錄</div>
+    <div id="game-log-list"></div>
+  </div>
+  <button class="btn btn-black btn-sm" id="back-to-game" style="display:none" onclick="window.location.href='/game'">回到遊戲</button>
+</div>
+
+<div id="toast"></div>
+
+<script src="/shared.js"></script>
+<script>
+const myName = getMyName();
+
+window.onload = async () => {
+  await loadLeaderboard();
+
+  if (myName) {
+    document.getElementById('back-to-game').style.display = '';
+  }
+
+  connectSSE(sseHandlers);
+  initBgPattern();
+  startConfettiShower();
+};
+
+const sseHandlers = {
+  complete: (msg) => {
+    loadLeaderboard();
+  },
+  end: (msg) => {
+    loadLeaderboard();
+  },
+  reset: (msg) => {
+    clearMyName();
+    window.location.href = '/';
+  },
+};
+
+async function loadLeaderboard() {
+  try {
+    const r = await fetch(`${API}/api/leaderboard`);
+    const data = await r.json();
+    const ranks = ['🥇','🥈','🥉'];
+    const list = document.getElementById('lb-list');
+    list.innerHTML = (data.leaderboard || []).map((e, i) => {
+      const rankClass = i < 3 ? `rank-${i+1}` : '';
+      return `<div class="lb-entry ${rankClass}">
+        <div class="lb-rank">${ranks[i] || (i+1)}</div>
+        <div class="lb-name">${e.name}</div>
+        <div class="lb-score">${e.score}</div>
+      </div>`;
+    }).join('');
+
+    if (data.status === 'ended' && data.log && data.log.length) {
+      document.getElementById('game-log-section').style.display = '';
+      document.getElementById('game-log-list').innerHTML = data.log.map(l => {
+        const time = new Date(l.created_at).toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit'});
+        let desc = '';
+        if (l.event_type === 'complete') desc = `${l.player_name} 完成任務`;
+        else if (l.event_type === 'accuse') desc = `${l.player_name} 成功指控`;
+        else if (l.event_type === 'ability') desc = `${l.player_name} 使用能力卡（${l.detail}）`;
+        else if (l.event_type === 'bonus') desc = `${l.player_name} 領取 Bonus（${l.detail}）`;
+        return `<div class="log-entry">
+          <div class="log-event">${time} ${desc}</div>
+          <div class="log-detail">${l.detail}</div>
+        </div>`;
+      }).join('');
+    }
+
+    // Hide "back to game" if game has ended
+    if (data.status === 'ended') {
+      document.getElementById('back-to-game').style.display = 'none';
+    }
+  } catch {}
+}
+function initBgPattern() {
+  const inner = document.getElementById('bg-inner');
+  const UNIT = 'GOTCHA   ';
+  for (let i = 0; i < 26; i++) {
+    const row = document.createElement('div');
+    row.className = 'bg-row';
+    row.textContent = UNIT.repeat(30);
+    inner.appendChild(row);
+  }
+
+  // Measure exact unit width after layout, then set precise seamless keyframes
+  requestAnimationFrame(() => {
+    const probe = document.createElement('span');
+    probe.className = 'bg-row';
+    probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;top:0;left:0;pointer-events:none';
+    probe.textContent = UNIT;
+    document.body.appendChild(probe);
+    const unitW = probe.getBoundingClientRect().width;
+    probe.remove();
+
+    // Stagger alternating rows by half a unit for brick-pattern look
+    inner.querySelectorAll('.bg-row').forEach((row, i) => {
+      if (i % 2 === 1) row.style.marginLeft = `-${(unitW / 2).toFixed(1)}px`;
+    });
+
+    // Override keyframes with exact measured distance — no jump at loop point
+    const sheet = document.createElement('style');
+    sheet.textContent = `@keyframes bg-drift {
+      from { transform: rotate(-22deg) translateX(0); }
+      to   { transform: rotate(-22deg) translateX(-${unitW.toFixed(1)}px); }
+    }`;
+    document.head.appendChild(sheet);
+  });
+}
+
+function startConfettiShower() {
+  const colors = ['#FFD700','#E53935','#43A047','#FF9800','#9C27B0','#2196F3','#FF6B9D'];
+  const POOL = 60;
+  for (let i = 0; i < POOL; i++) {
+    const el = document.createElement('div');
+    const dur = 1.8 + Math.random() * 2;
+    el.className = 'confetti-piece confetti-bg';
+    el.style.left = Math.random() * 100 + 'vw';
+    el.style.background = colors[Math.floor(Math.random() * colors.length)];
+    el.style.opacity = 0.3 + Math.random() * 0.35;
+    el.style.width = (5 + Math.random() * 7) + 'px';
+    el.style.height = (5 + Math.random() * 7) + 'px';
+    el.style.animationDuration = dur + 's';
+    el.style.animationDelay = -(Math.random() * dur) + 's'; // start mid-fall
+    el.style.animationIterationCount = 'infinite';
+    el.addEventListener('animationiteration', () => {
+      el.style.left = Math.random() * 100 + 'vw';
+    });
+    document.body.appendChild(el);
+  }
+}
+</script>
+</body>
+</html>

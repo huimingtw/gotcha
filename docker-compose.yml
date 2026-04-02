@@ -1,0 +1,21 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    depends_on:
+      - ngrok
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    command: http --domain=${NGROK_DOMAIN} app:8080
+    ports:
+      - "4040:4040"
+    env_file:
+      - .env
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}

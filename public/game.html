@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>GOTCHA - 遊戲中</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div class="page game-page" id="game-page">
+  <div class="top-bar">
+    <div class="top-score">
+      <span>我的分數</span>
+      <span id="my-score">0</span>
+    </div>
+    <div class="top-timer">
+      <span>剩餘時間</span>
+      <span id="timer">--:--</span>
+    </div>
+    <button class="btn btn-sm" style="width:auto;padding:6px 10px;background:var(--surface);color:var(--black);border:1.5px solid var(--border);font-size:13px" onclick="openRules()">📖</button>
+  </div>
+
+  <!-- Ability cards -->
+  <div class="section-title">能力卡</div>
+  <div class="ability-cards">
+    <div class="ability-card" id="ability-swap" onclick="useAbility('swap')">
+      <div class="ability-icon">🔄</div>
+      <div class="ability-name">換任務</div>
+    </div>
+    <div class="ability-card" id="ability-double" onclick="useAbility('double')">
+      <div class="ability-icon">⚡</div>
+      <div class="ability-name">雙倍</div>
+    </div>
+  </div>
+
+  <!-- Missions -->
+  <div class="section-title">我的任務</div>
+  <div id="mission-list"></div>
+
+</div>
+
+<!-- Feed button -->
+<button id="feed-btn" class="feed-fab" onclick="openFeed()">📡 <span id="feed-count">0</span></button>
+
+<!-- Feed modal -->
+<div id="feed-modal" style="display:none; position:fixed; inset:0; z-index:180; background:rgba(0,0,0,0.55); backdrop-filter:blur(4px)" onclick="closeFeed()">
+  <div class="feed-sheet" onclick="event.stopPropagation()">
+    <div style="display:flex; align-items:center; margin-bottom:12px">
+      <div style="font-size:18px; font-weight:900; flex:1">📡 即時動態</div>
+      <button class="btn btn-sm btn-black" style="width:auto;padding:6px 14px" onclick="closeFeed()">關閉</button>
+    </div>
+    <div id="game-feed" style="display:flex; flex-direction:column; gap:12px; overflow-y:auto; max-height:60vh">
+      <div style="opacity:0.4; font-size:14px; text-align:center; padding:20px 0">還沒有動態</div>
+    </div>
+  </div>
+</div>
+
+<!-- Fullscreen mission overlay -->
+<div id="mission-full">
+  <div class="back-btn" onclick="closeFull()">✕ 關閉</div>
+  <div class="full-type" id="full-type"></div>
+  <div class="full-content" id="full-content"></div>
+  <div class="full-actions">
+    <button class="btn btn-red" id="fail-btn" onclick="failMission()">FAILED IT</button>
+    <button class="btn btn-green" id="nailed-btn" onclick="nailMission()">NAILED IT</button>
+  </div>
+</div>
+
+<!-- Bonus modal -->
+<div id="bonus-modal">
+  <div class="bonus-title">🎉 BONUS 解鎖！</div>
+  <div class="bonus-desc">完成第 3 個任務，選擇你的獎勵：</div>
+  <div class="bonus-options">
+    <button class="btn btn-yellow" id="bonus-btn-normal" onclick="claimBonus('normal')">抽 2 張普通任務 (+2 each)</button>
+    <button class="btn btn-red" id="bonus-btn-hard" onclick="claimBonus('hard')">抽 1 張困難任務 (高分)</button>
+  </div>
+</div>
+
+
+<!-- Rules modal -->
+<div id="rules-modal" style="display:none; position:fixed; inset:0; z-index:200; background:rgba(0,0,0,0.6); overflow-y:auto; padding:24px; backdrop-filter:blur(4px)">
+  <div style="background:var(--white); border-radius:20px; max-width:480px; margin:0 auto; padding:24px; display:flex; flex-direction:column; gap:16px">
+
+    <div style="font-size:28px; font-weight:900; letter-spacing:2px; text-align:center">📖 遊戲規則</div>
+
+    <div class="rules-section">
+      <div class="rules-heading">🎉 遊戲目標</div>
+      <div class="rules-body">請在不被抓包的情況下儘可能完成你們的秘密任務
+        對象不可以是主辦人😊
+      </div>
+    </div>
+
+    <div class="rules-section">
+      <div class="rules-heading">🃏 開局發牌</div>
+      <div class="rules-body">每人獲得 4 張普通任務 + 1 張困難任務<br>附送 2 張能力卡：🔄 換任務、⚡ 雙倍</div>
+    </div>
+
+    <div class="rules-section">
+      <div class="rules-heading">✅ 完成任務</div>
+      <div class="rules-body">
+        點任務卡 → 滿版顯示 → 按 <b>NAILED IT</b><br>
+        普通任務：<b>2 分</b><br>
+        困難任務：<b>依卡片描述</b>
+      </div>
+    </div>
+
+    <div class="rules-section">
+      <div class="rules-heading">🚨 抓包機制</div>
+      <div class="rules-body">
+        懷疑者喊「你的任務是不是…」猜出任務內容<br>
+        若猜錯什麼事都沒發生<br>
+        被猜對的話點開任務卡，遞給對方看<br>
+        按下 <b>FAILED IT</b> → 任務作廢<br>
+      </div>
+    </div>
+
+    <div class="rules-section">
+      <div class="rules-heading">🎁 Bonus 解鎖</div>
+      <div class="rules-body">完成第 3 個任務時觸發，選擇：<br>抽 2 張普通任務 或 1 張困難任務</div>
+    </div>
+
+    <div class="rules-section">
+      <div class="rules-heading">🔄 換任務</div>
+      <div class="rules-body">點能力卡 → 選一張任務 → 換成同類型新任務<br>限用一次</div>
+    </div>
+
+    <div class="rules-section">
+      <div class="rules-heading">⚡ 雙倍</div>
+      <div class="rules-body">點能力卡 → 選一張任務 → 完成時得分 ×2<br>限用一次</div>
+    </div>
+
+    <div class="rules-section">
+      <div class="rules-heading">🏆 結算</div>
+      <div class="rules-body">計時歸零自動結算，公開完整紀錄</div>
+    </div>
+
+    <button class="btn btn-yellow" onclick="closeRules()">知道了 👍</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="/shared.js"></script>
+<script>
+let myName = '';
+let currentMission = null;
+let abilityMode = null;
+let timerInterval = null;
+
+window.onload = async () => {
+  myName = getMyName();
+  if (!myName) {
+    window.location.href = '/';
+    return;
+  }
+
+  try {
+    const r = await fetch(`${API}/me/${encodeURIComponent(myName)}`);
+    const data = await r.json();
+    if (data.error) {
+      clearMyName();
+      window.location.href = '/';
+      return;
+    }
+    if (data.game_status === 'ended') {
+      window.location.href = '/leaderboard';
+      return;
+    }
+    if (data.game_status !== 'playing') {
+      window.location.href = '/waiting';
+      return;
+    }
+    renderGame(data);
+    startTimer(data.end_time);
+  } catch {
+    // Network error — keep name, let them retry from home
+    window.location.href = '/';
+    return;
+  }
+
+  await loadFeedHistory();
+  connectSSE(sseHandlers);
+};
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    refreshState();
+  }
+});
+
+async function refreshState() {
+  if (!myName) return;
+  try {
+    const r = await fetch(`${API}/me/${encodeURIComponent(myName)}`);
+    const data = await r.json();
+    if (data.error) { clearMyName(); window.location.href = '/'; return; }
+    if (data.game_status === 'ended') { window.location.href = '/leaderboard'; return; }
+    if (data.game_status !== 'playing') { window.location.href = '/waiting'; return; }
+    renderGame(data);
+    startTimer(data.end_time);
+  } catch {}
+}
+
+const sseHandlers = {
+  complete: (msg) => {
+    const label = msg.mtype === 'hard' ? '一個困難任務' : '一個任務';
+    appendFeed('complete', `🎯 ${msg.player} 完成了${label}`, msg.mtype || '');
+  },
+  accuse: (msg) => {
+    appendFeed('accuse', `${msg.victim} 被抓包了 🤣`);
+  },
+  ability: (msg) => {
+    const text = msg.ability === 'swap' ? `🔄 ${msg.player} 換了一張任務` : `⚡ ${msg.player} 啟動雙倍`;
+    appendFeed('ability', text);
+  },
+  end: (msg) => {
+    window.location.href = '/leaderboard';
+  },
+  reset: (msg) => {
+    clearMyName();
+    window.location.href = '/';
+  },
+  state: (msg) => {
+    if (msg.status === 'ended') {
+      window.location.href = '/leaderboard';
+    } else if (msg.status !== 'playing') {
+      window.location.href = '/waiting';
+    }
+  },
+};
+
+let unreadFeed = 0;
+
+function openFeed() {
+  unreadFeed = 0;
+  document.getElementById('feed-count').textContent = '';
+  document.getElementById('feed-btn').classList.remove('feed-fab-unread');
+  document.getElementById('feed-modal').style.display = 'block';
+  const feed = document.getElementById('game-feed');
+  feed.scrollTop = feed.scrollHeight;
+}
+
+async function loadFeedHistory() {
+  try {
+    const r = await fetch(`${API}/game-log`);
+    const data = await r.json();
+    const feed = document.getElementById('game-feed');
+    const placeholder = feed.querySelector('[style*="opacity"]');
+    if (placeholder) placeholder.remove();
+    (data.log || []).forEach(e => {
+      if (e.event_type === 'complete') {
+        const mtype = e.detail.match(/type:(\w+)/)?.[1] || '';
+        const label = mtype === 'hard' ? '一個困難任務' : '一個任務';
+        appendFeed('complete', `🎯 ${e.player_name} 完成了${label}`, mtype, e.created_at, true);
+      } else if (e.event_type === 'accuse') {
+        const victim = e.detail.match(/victim:([^ ]+)/)?.[1] || e.player_name;
+        appendFeed('accuse', `${victim} 被抓包了 🤣`, '', e.created_at, true);
+      } else if (e.event_type === 'ability') {
+        const text = e.detail === 'swap' ? `🔄 ${e.player_name} 換了一張任務` : `⚡ ${e.player_name} 啟動雙倍`;
+        appendFeed('ability', text, '', e.created_at, true);
+      }
+    });
+  } catch {}
+}
+
+function closeFeed() {
+  document.getElementById('feed-modal').style.display = 'none';
+}
+
+function appendFeed(type, text, mtype, timestamp, silent) {
+  const feed = document.getElementById('game-feed');
+  if (!feed) return;
+  const placeholder = feed.querySelector('[style*="opacity"]');
+  if (placeholder) placeholder.remove();
+  const time = timestamp
+    ? new Date(timestamp).toLocaleTimeString('zh-TW', {hour: '2-digit', minute: '2-digit', second: '2-digit'})
+    : new Date().toLocaleTimeString('zh-TW', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+  const item = document.createElement('div');
+  let cls = type === 'accuse' ? 'feed-entry feed-fail' : type === 'ability' ? 'feed-entry feed-ability' : 'feed-entry feed-complete';
+  if (mtype === 'hard') cls += ' feed-hard';
+  item.className = cls;
+  item.innerHTML = `<span class="feed-time">${time}</span>${text}`;
+  feed.appendChild(item);
+  feed.scrollTop = feed.scrollHeight;
+  if (!silent && document.getElementById('feed-modal').style.display === 'none') {
+    unreadFeed++;
+    document.getElementById('feed-count').textContent = unreadFeed;
+    document.getElementById('feed-btn').classList.add('feed-fab-unread');
+  }
+}
+
+function renderGame(data) {
+  document.getElementById('my-score').textContent = data.score || 0;
+
+  // Abilities
+  (data.abilities || []).forEach(a => {
+    const el = document.getElementById('ability-' + a.name);
+    if (el) el.className = 'ability-card' + (a.used ? ' used' : '');
+  });
+
+  // Missions
+  const list = document.getElementById('mission-list');
+  list.innerHTML = '';
+  (data.missions || []).forEach(m => {
+    const card = document.createElement('div');
+    const extraClass = m.double_active ? ' double-active' : '';
+    card.className = `mission-card ${m.type} ${m.status}${extraClass}`;
+    card.dataset.pmid = m.pm_id;
+    card.dataset.type = m.type;
+    card.dataset.status = m.status;
+
+    let badge = '';
+    if (m.status === 'completed') badge = `<div class="mission-status-badge">✓ 完成 (+${m.score_earned})</div>`;
+    else if (m.status === 'failed') badge = `<div class="mission-status-badge">✗ 失敗</div>`;
+    else if (m.status === 'discarded') badge = `<div class="mission-status-badge">已換掉</div>`;
+
+    const scoreHint = m.type === 'hard'
+      ? `<div class="mission-score-hint">${m.base_score} 分</div>`
+      : '';
+    card.innerHTML = `
+      <div class="mission-type-badge">${m.type === 'hard' ? '💀 困難' : '📋 普通'}</div>
+      <div class="mission-content">${m.content}</div>
+      ${scoreHint}
+      ${badge}
+    `;
+
+    if (m.status === 'active') {
+      card.onclick = () => openMission(m);
+    }
+    list.appendChild(card);
+  });
+}
+
+function startTimer(endTimeStr) {
+  if (timerInterval) clearInterval(timerInterval);
+  if (!endTimeStr) return;
+
+  const endTime = new Date(endTimeStr);
+  function update() {
+    const now = new Date();
+    const diff = endTime - now;
+    if (diff <= 0) {
+      document.getElementById('timer').textContent = '結束';
+      clearInterval(timerInterval);
+      return;
+    }
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    document.getElementById('timer').textContent =
+      h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+             : `${m}:${String(s).padStart(2,'0')}`;
+  }
+  update();
+  timerInterval = setInterval(update, 1000);
+}
+
+function openMission(m) {
+  if (abilityMode) {
+    activateAbilityOn(m);
+    return;
+  }
+  currentMission = m;
+  document.getElementById('full-type').textContent = m.type === 'hard' ? '💀 困難任務' : '📋 普通任務';
+  document.getElementById('full-content').textContent = m.content;
+  document.getElementById('nailed-btn').style.display = '';
+  document.getElementById('fail-btn').style.display = '';
+  document.getElementById('mission-full').classList.add('active');
+}
+
+function closeFull() {
+  document.getElementById('mission-full').classList.remove('active');
+  currentMission = null;
+}
+
+function nailMission() {
+  if (!currentMission) return;
+  doComplete(currentMission.pm_id);
+  closeFull();
+}
+
+function failMission() {
+  if (!currentMission) return;
+  fetch(`${API}/fail`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({pm_id: currentMission.pm_id})
+  }).then(r => r.json()).then(data => {
+    if (data.error) { toast(data.error); return; }
+    toast('🚨 任務失敗');
+    refreshState();
+    closeFull();
+  });
+}
+
+function doComplete(pmid) {
+  fetch(`${API}/complete`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({player_name: myName, pm_id: pmid})
+  }).then(r => r.json()).then(data => {
+    if (data.error) { toast(data.error); return; }
+    confetti();
+    toast(`🎉 NAILED IT！+${data.score_earned} 分`);
+    if (data.bonus_unlocked) {
+      setTimeout(() => {
+        const btnNormal = document.getElementById('bonus-btn-normal');
+        const btnHard = document.getElementById('bonus-btn-hard');
+        btnNormal.disabled = !data.bonus_normal_avail;
+        btnNormal.style.opacity = data.bonus_normal_avail ? '' : '0.4';
+        btnHard.disabled = !data.bonus_hard_avail;
+        btnHard.style.opacity = data.bonus_hard_avail ? '' : '0.4';
+        document.getElementById('bonus-modal').classList.add('active');
+      }, 1500);
+    }
+    refreshState();
+  });
+}
+
+
+
+function useAbility(type) {
+  const card = document.getElementById('ability-' + type);
+  if (card.classList.contains('used')) return;
+
+  if (abilityMode === type) {
+    abilityMode = null;
+    resetAbilityUI();
+    toast('已取消');
+    return;
+  }
+
+  abilityMode = type;
+  toast(type === 'swap' ? '🔄 選一張任務換掉' : '⚡ 選一張任務啟動雙倍');
+  document.querySelectorAll('.mission-card.active').forEach(c => {
+    c.classList.add('ability-select-mode');
+  });
+}
+
+function activateAbilityOn(m) {
+  const ability = abilityMode;
+  abilityMode = null;
+  resetAbilityUI();
+
+  fetch(`${API}/ability`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({player_name: myName, ability, pm_id: m.pm_id})
+  }).then(r => r.json()).then(data => {
+    if (data.error) { toast(data.error); refreshState(); return; }
+    if (data.action === 'swap') toast('🔄 已換新任務！');
+    if (data.action === 'double') toast('⚡ 雙倍啟動！');
+    refreshState();
+  });
+}
+
+function resetAbilityUI() {
+  document.querySelectorAll('.mission-card').forEach(c => {
+    c.classList.remove('ability-select-mode');
+  });
+}
+
+function claimBonus(choice) {
+  fetch(`${API}/bonus`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({player_name: myName, choice})
+  }).then(r => r.json()).then(data => {
+    if (data.error) { toast(data.error); return; }
+    closeBonus();
+    toast('🎁 Bonus 任務已加入！');
+    refreshState();
+  });
+}
+
+function closeBonus() {
+  document.getElementById('bonus-modal').classList.remove('active');
+}
+
+function openRules() {
+  document.getElementById('rules-modal').style.display = 'block';
+}
+
+function closeRules() {
+  document.getElementById('rules-modal').style.display = 'none';
+}
+</script>
+</body>
+</html>

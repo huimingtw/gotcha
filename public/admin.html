@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>GOTCHA - 主辦控制台</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div class="page" id="admin-page" style="height:100dvh;overflow:hidden">
+  <div class="admin-title">🎮 主辦控制台</div>
+
+  <!-- State: closed -->
+  <div id="admin-closed-section" style="display:none">
+    <button class="btn btn-yellow" onclick="openRoom()">開放房間 🔓</button>
+  </div>
+
+  <!-- State: waiting -->
+  <div id="admin-waiting-section" style="display:none; flex-direction:column; gap:12px">
+    <div id="admin-qr-section" style="display:flex; align-items:center; flex-direction:column; gap:8px">
+      <div style="font-size:14px; opacity:0.6; letter-spacing:1px">掃 QR Code 加入</div>
+      <img id="qr-img" src="/qr.png" style="border-radius:12px; width:220px; height:220px; image-rendering:pixelated">
+      <div id="qr-url" style="font-size:11px; opacity:0.4; word-break:break-all; text-align:center"></div>
+    </div>
+    <div class="player-list" id="player-list">
+      <div style="opacity:0.5;font-size:14px">等待玩家加入...</div>
+    </div>
+    <div class="duration-row">
+      <span style="font-size:16px">遊戲時長</span>
+      <input type="text" id="duration-input" value="120" style="width:80px">
+      <span style="font-size:16px">分鐘</span>
+    </div>
+    <button class="btn btn-green" onclick="startGame()">開始遊戲 🚀</button>
+    <button class="btn btn-red btn-sm" onclick="resetGame()">重置遊戲</button>
+  </div>
+
+  <!-- State: playing -->
+  <div id="admin-playing-section" style="display:none; flex-direction:column; gap:12px; flex:1; min-height:0; overflow:hidden">
+    <a href="/leaderboard" class="btn btn-black" style="text-align:center; text-decoration:none; flex-shrink:0">查看排行榜</a>
+    <div style="display:flex; align-items:center; gap:8px; margin-top:4px; flex-shrink:0">
+      <div style="font-size:14px; opacity:0.5; letter-spacing:1px; flex:1">即時動態</div>
+      <button id="toggle-detail" class="btn btn-sm" style="width:auto;padding:6px 12px;background:#f4f4f4;color:#555;border:1.5px solid #ddd" onclick="toggleDetail()">顯示任務細節</button>
+    </div>
+    <div id="event-log" style="display:flex; flex-direction:column; gap:8px; flex:1; overflow-y:auto; border:1.5px solid var(--border); border-radius:14px; padding:12px; background:var(--surface); min-height:0"></div>
+    <button class="btn btn-red btn-sm" style="flex-shrink:0" onclick="endGame()">結束遊戲</button>
+    <button class="btn btn-red btn-sm" style="flex-shrink:0" onclick="resetGame()">重置遊戲</button>
+  </div>
+
+  <!-- State: ended -->
+  <div id="admin-ended-section" style="display:none; flex-direction:column; gap:12px">
+    <a href="/leaderboard" class="btn btn-yellow btn-sm" style="text-align:center; text-decoration:none">查看排行榜</a>
+    <button class="btn btn-red btn-sm" onclick="resetGame()">重置遊戲</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="/shared.js"></script>
+<script>
+let playerRefreshInterval = null;
+let showDetail = false;
+
+window.onload = async () => {
+  await loadAdminState();
+  connectSSE(sseHandlers);
+};
+
+const sseHandlers = {
+  open:     () => { loadAdminState(); },
+  start:    () => { loadAdminState(); },
+  end:      () => { loadAdminState(); },
+  reset:    () => { loadAdminState(); },
+  complete: (msg) => { appendLog('complete', msg.player, msg.content || '', msg.mtype || ''); confetti(); },
+  accuse:   (msg) => { appendLog('accuse',   msg.victim, msg.content || '', ''); },
+  ability:  (msg) => { appendLog('ability',  msg.player, msg.ability, ''); },
+};
+
+function appendLog(type, player, content, mtype) {
+  const log = document.getElementById('event-log');
+  if (!log) return;
+  const time = new Date().toLocaleTimeString('zh-TW', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+  const item = document.createElement('div');
+  let cls = type === 'accuse' ? 'feed-entry feed-fail' : type === 'ability' ? 'feed-entry feed-ability' : 'feed-entry feed-complete';
+  if (mtype === 'hard') cls += ' feed-hard';
+  item.className = cls;
+  item.dataset.type = type;
+  item.dataset.player = player;
+  item.dataset.content = content;
+  item.dataset.mtype = mtype || '';
+  item.dataset.time = time;
+  renderLogItem(item);
+  log.appendChild(item);
+  log.scrollTop = log.scrollHeight;
+}
+
+function renderLogItem(item) {
+  const { type, player, content, time } = item.dataset;
+  let text;
+  if (type === 'accuse') {
+    text = showDetail && content
+      ? `${player} 被抓包了 🤣 — 「${content}」`
+      : `${player} 被抓包了 🤣`;
+  } else if (type === 'ability') {
+    text = content === 'swap' ? `🔄 ${player} 換了一張任務` : `⚡ ${player} 啟動雙倍`;
+  } else {
+    const label = item.dataset.mtype === 'hard' ? '一個困難任務' : '一個任務';
+    text = showDetail && content
+      ? `🎯 ${player} 完成了「${content}」`
+      : `🎯 ${player} 完成了${label}`;
+  }
+  item.innerHTML = `<span class="feed-time">${time}</span>${text}`;
+}
+
+function toggleDetail() {
+  showDetail = !showDetail;
+  const btn = document.getElementById('toggle-detail');
+  btn.style.background = showDetail ? '#111' : '#f4f4f4';
+  btn.style.color = showDetail ? '#fff' : '#555';
+  btn.style.borderColor = showDetail ? '#111' : '#ddd';
+  document.querySelectorAll('#event-log [data-type]').forEach(renderLogItem);
+}
+
+function parseDetail(detail, key) {
+  const m = detail.match(new RegExp(key + ':(.+?)(?= \\w+:|$)'));
+  return m ? m[1].trim() : '';
+}
+
+async function loadGameLog() {
+  const log = document.getElementById('event-log');
+  if (!log) return;
+  log.innerHTML = '';
+  try {
+    const r = await fetch(`${API}/game-log`);
+    const data = await r.json();
+    (data.log || []).forEach(e => {
+      if (e.event_type === 'complete') {
+        const content = parseDetail(e.detail, 'content');
+        const mtype = parseDetail(e.detail, 'type');
+        appendLog('complete', e.player_name, content, mtype);
+      } else if (e.event_type === 'accuse') {
+        const victim = parseDetail(e.detail, 'victim');
+        const content = parseDetail(e.detail, 'content');
+        appendLog('accuse', victim, content, '');
+      } else if (e.event_type === 'ability') {
+        appendLog('ability', e.player_name, e.detail, '');
+      }
+    });
+  } catch {}
+}
+
+async function loadAdminState() {
+  try {
+    const r = await fetch(`${API}/players`);
+    const data = await r.json();
+    showAdminState(data.status, data.players);
+  } catch {
+    toast('載入失敗');
+  }
+}
+
+function showAdminState(status, players) {
+  document.getElementById('admin-closed-section').style.display = 'none';
+  document.getElementById('admin-waiting-section').style.display = 'none';
+  document.getElementById('admin-playing-section').style.display = 'none';
+  document.getElementById('admin-ended-section').style.display = 'none';
+
+  clearInterval(playerRefreshInterval);
+  playerRefreshInterval = null;
+
+  if (status === 'closed') {
+    document.getElementById('admin-closed-section').style.display = '';
+  } else if (status === 'waiting') {
+    document.getElementById('admin-waiting-section').style.display = 'flex';
+    loadQRCode();
+    renderPlayerList(players);
+    playerRefreshInterval = setInterval(loadPlayers, 3000);
+  } else if (status === 'playing') {
+    document.getElementById('admin-playing-section').style.display = 'flex';
+    loadGameLog();
+  } else if (status === 'ended') {
+    document.getElementById('admin-ended-section').style.display = 'flex';
+  }
+}
+
+function loadQRCode() {
+  document.getElementById('qr-img').src = '/qr.png?' + Date.now();
+  fetch(`${API}/ngrok-url`).then(r => r.json()).then(data => {
+    if (data.url) document.getElementById('qr-url').textContent = data.url;
+  }).catch(() => {
+    document.getElementById('qr-url').textContent = window.location.origin;
+  });
+}
+
+async function loadPlayers() {
+  try {
+    const r = await fetch(`${API}/players`);
+    const data = await r.json();
+    renderPlayerList(data.players);
+  } catch {}
+}
+
+function renderPlayerList(players) {
+  const list = document.getElementById('player-list');
+  if (!list) return;
+  if (!players || players.length === 0) {
+    list.innerHTML = '<div style="opacity:0.5;font-size:14px">等待玩家加入...</div>';
+    return;
+  }
+  list.innerHTML = players.map(p => `<div class="player-item">👤 ${p.name}</div>`).join('');
+}
+
+async function openRoom() {
+  try {
+    const r = await fetch(`${API}/admin/open`, {method: 'POST'});
+    const data = await r.json();
+    if (data.error) { toast(data.error); return; }
+    toast('房間已開放！');
+    loadAdminState();
+  } catch {
+    toast('連線失敗');
+  }
+}
+
+async function startGame() {
+  const dur = parseInt(document.getElementById('duration-input').value) || 120;
+  try {
+    const r = await fetch(`${API}/start`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({duration_minutes: dur})
+    });
+    const data = await r.json();
+    if (data.error) { toast('❌ ' + data.error); return; }
+    clearInterval(playerRefreshInterval);
+    playerRefreshInterval = null;
+    toast('🚀 遊戲開始！');
+    loadAdminState();
+  } catch (e) {
+    toast('❌ 連線失敗: ' + e.message);
+  }
+}
+
+async function resetGame() {
+  if (!confirm('確定要重置遊戲？所有資料將清除。')) return;
+  try {
+    await fetch(`${API}/admin/reset`, {method: 'POST'});
+    toast('已重置');
+    loadAdminState();
+  } catch {
+    toast('連線失敗');
+  }
+}
+
+async function endGame() {
+  if (!confirm('確定結束遊戲？')) return;
+  try {
+    await fetch(`${API}/admin/end`, {method: 'POST'});
+    toast('遊戲結束');
+    loadAdminState();
+  } catch {
+    toast('連線失敗');
+  }
+}
+</script>
+</body>
+</html>

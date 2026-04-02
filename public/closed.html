@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>GOTCHA - 等待開房</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div class="page page-center">
+  <div class="logo" style="font-size:48px">GOTCHA</div>
+  <div class="waiting-msg pulse">等待主辦開房...</div>
+</div>
+
+<div id="toast"></div>
+
+<script src="/shared.js"></script>
+<script>
+window.onload = async () => {
+  try {
+    const r = await fetch(`${API}/players`);
+    const data = await r.json();
+    if (data.status !== 'closed') {
+      redirectByStatus(data.status);
+      return;
+    }
+  } catch {}
+  connectSSE(sseHandlers);
+};
+
+function redirectByStatus(status) {
+  if (status === 'waiting') {
+    const name = getMyName();
+    if (name) window.location.href = '/waiting';
+    else window.location.href = '/';
+  } else if (status === 'playing') {
+    const name = getMyName();
+    if (name) window.location.href = '/game';
+    else window.location.href = '/';
+  } else if (status === 'ended') {
+    window.location.href = '/leaderboard';
+  }
+}
+
+const sseHandlers = {
+  open: (msg) => {
+    window.location.href = '/';
+  },
+  reset: (msg) => {
+    clearMyName();
+    window.location.reload();
+  },
+};
+</script>
+</body>
+</html>

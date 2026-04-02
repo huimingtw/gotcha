@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>GOTCHA - 等待開始</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div class="page page-center">
+  <div class="logo" style="font-size:48px">GOTCHA</div>
+  <div class="waiting-name" id="waiting-name"></div>
+  <div class="waiting-msg pulse">等待主辦開始遊戲...</div>
+  <button class="btn btn-sm" style="width:auto;background:var(--surface);color:var(--black);border:1.5px solid var(--border);margin-top:8px" onclick="openRules()">📖 查看遊戲規則</button>
+</div>
+
+<!-- Rules modal -->
+<div id="rules-modal" style="display:none; position:fixed; inset:0; z-index:200; background:rgba(0,0,0,0.6); overflow-y:auto; padding:24px; backdrop-filter:blur(4px)">
+  <div style="background:var(--white); border-radius:20px; max-width:480px; margin:0 auto; padding:24px; display:flex; flex-direction:column; gap:16px">
+
+    <div style="font-size:28px; font-weight:900; letter-spacing:2px; text-align:center">📖 遊戲規則</div>
+
+    <div class="rules-section">
+      <div class="rules-heading">🎉 遊戲目標</div>
+      <div class="rules-body">請在不被抓包的情況下儘可能完成你們的秘密任務</div>
+    </div>
+    
+    <div class="rules-section">
+      <div class="rules-heading">🃏 開局發牌</div>
+      <div class="rules-body">每人獲得 4 張普通任務 + 1 張困難任務<br>附送 2 張能力卡：🔄 換任務、⚡ 雙倍</div>
+    </div>
+
+    <div class="rules-section">
+      <div class="rules-heading">✅ 完成任務</div>
+      <div class="rules-body">
+        點任務卡 → 滿版顯示 → 按 <b>NAILED IT</b><br>
+        普通任務：<b>2 分</b><br>
+        困難任務：<b>依卡片基礎分</b>
+      </div>
+    </div>
+
+    <div class="rules-section">
+      <div class="rules-heading">🚨 抓包機制</div>
+      <div class="rules-body">
+        懷疑者喊「你的任務是不是…」猜出任務內容<br>
+        若猜錯什麼事都沒發生<br>
+        被猜對的話點開任務卡，遞給對方看<br>
+        按下 <b>FAILED IT</b> → 任務作廢<br>
+      </div>
+    </div>
+
+    <div class="rules-section">
+      <div class="rules-heading">🎁 Bonus 解鎖</div>
+      <div class="rules-body">完成第 3 個任務時觸發，選擇：<br>抽 2 張普通任務 或 1 張困難任務</div>
+    </div>
+
+    <div class="rules-section">
+      <div class="rules-heading">🔄 換任務</div>
+      <div class="rules-body">點能力卡 → 選一張任務 → 換成同類型新任務<br>限用一次</div>
+    </div>
+
+    <div class="rules-section">
+      <div class="rules-heading">⚡ 雙倍</div>
+      <div class="rules-body">點能力卡 → 選一張任務 → 完成時得分 ×2<br>限用一次</div>
+    </div>
+
+    <div class="rules-section">
+      <div class="rules-heading">🏆 結算</div>
+      <div class="rules-body">計時歸零自動結算，公開完整紀錄</div>
+    </div>
+
+    <button class="btn btn-yellow" onclick="closeRules()">知道了 👍</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="/shared.js"></script>
+<script>
+const RULES_SEEN_KEY = 'gotcha_rules_seen';
+
+window.onload = async () => {
+  const name = getMyName();
+  if (!name) {
+    window.location.href = '/';
+    return;
+  }
+
+  document.getElementById('waiting-name').textContent = `👋 ${name}`;
+
+  try {
+    const r = await fetch(`${API}/me/${encodeURIComponent(name)}`);
+    const data = await r.json();
+    if (data.error) {
+      clearMyName();
+      window.location.href = '/';
+      return;
+    }
+    if (data.game_status === 'playing') {
+      window.location.href = '/game';
+      return;
+    } else if (data.game_status === 'ended') {
+      window.location.href = '/leaderboard';
+      return;
+    } else if (data.game_status === 'closed') {
+      window.location.href = '/closed';
+      return;
+    }
+  } catch {
+    // network error, stay and connect SSE
+  }
+
+  openRules();
+
+  connectSSE(sseHandlers);
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      checkGameStatus();
+    }
+  });
+};
+
+async function checkGameStatus() {
+  const name = getMyName();
+  if (!name) return;
+  try {
+    const r = await fetch(`${API}/me/${encodeURIComponent(name)}`);
+    const data = await r.json();
+    if (data.game_status === 'playing') window.location.href = '/game';
+    else if (data.game_status === 'ended') window.location.href = '/leaderboard';
+    else if (data.game_status === 'closed') window.location.href = '/closed';
+  } catch {}
+}
+
+function openRules() {
+  document.getElementById('rules-modal').style.display = 'block';
+}
+
+function closeRules() {
+  localStorage.setItem(RULES_SEEN_KEY, '1');
+  document.getElementById('rules-modal').style.display = 'none';
+}
+
+const sseHandlers = {
+  start: (msg) => {
+    window.location.href = '/game';
+  },
+  reset: (msg) => {
+    clearMyName();
+    window.location.href = '/';
+  },
+  state: (msg) => {
+    // Only navigate if the tab is currently visible.
+    // When the tab is hidden (e.g. switched away), the SSE may drop and
+    // reconnect, which triggers this handler with the current server state.
+    // We ignore that and let visibilitychange do a fresh check instead.
+    if (document.visibilityState !== 'visible') return;
+    if (msg.status === 'playing') {
+      window.location.href = '/game';
+    } else if (msg.status === 'ended') {
+      window.location.href = '/leaderboard';
+    } else if (msg.status === 'closed') {
+      window.location.href = '/closed';
+    }
+  },
+};
+</script>
+</body>
+</html>
