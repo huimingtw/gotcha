@@ -2,6 +2,8 @@
 
 A social deduction party game for BBQ and hotpot gatherings. Players receive secret missions and try to complete them during the meal without getting caught. The host runs the server on a laptop; everyone joins via QR code on their phones.
 
+Inspired by the board game [Don't Get Got](https://bigpotato.com/products/dont-get-got). Built entirely via vibe coding.
+
 ## How it works
 
 - Each player gets **4 normal missions** (2 pts each) and **1 hard mission** (3–7 pts)
